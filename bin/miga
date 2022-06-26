@@ -1,0 +1,1 @@
+node $VUE_MIGA_HOME/release/index.js $1

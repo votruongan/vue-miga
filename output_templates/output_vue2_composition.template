@@ -1,0 +1,8 @@
+export default defineComponent({
+    components: {
+    },
+    props: {
+    },  
+    setup(props, context) {
+    },
+});

@@ -1,0 +1,20 @@
+{
+  "name": "vue_miga",
+  "version": "1.0.0",
+  "description": "Migrating Vue 2 codes to Composition API",
+  "main": "release/index.js",
+  "scripts": {
+    "start": "tsc && node dist/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Vo Truong An <v.an@linecorp.com>",
+  "license": "ISC",
+  "dependencies": {
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "ts-morph": "^15.1.0",
+    "typescript": "^4.7.3"
+  }
+}
