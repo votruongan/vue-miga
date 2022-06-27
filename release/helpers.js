@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.constructMainOutputMapper = exports.copyObjectValue = exports.addComment = exports.copyObjectToProperyAssignment = exports.getReturnedExpression = exports.isNodeEmpty = exports.processThisKeywordAccess = exports.findExportNode = exports.checkVarIsComponentData = exports.cloneObject = exports.findScriptContent = void 0;
+exports.getParamsString = exports.getBlockFunctionName = exports.constructMainOutputMapper = exports.copyObjectValue = exports.addComment = exports.copyObjectToProperyAssignment = exports.getReturnedExpression = exports.isNodeEmpty = exports.processThisKeywordAccess = exports.findExportNode = exports.checkVarIsComponentData = exports.cloneObject = exports.findScriptContent = void 0;
 const ts_morph_1 = require("ts-morph");
 const lodash_1 = require("lodash");
 const mapperModel_1 = require("./models/mapperModel");
@@ -114,4 +114,14 @@ function constructMainOutputMapper(outputFile, oldMapper) {
     return outputMapper;
 }
 exports.constructMainOutputMapper = constructMainOutputMapper;
+// get the function name of the block
+function getBlockFunctionName(block) {
+    let parent = block.getParent().getName ? block.getParent() : block.getParent().getParent();
+    return parent.getName ? parent : null;
+}
+exports.getBlockFunctionName = getBlockFunctionName;
+function getParamsString(method) {
+    return method.getParameters().map(p => p.print()).join(', ');
+}
+exports.getParamsString = getParamsString;
 //# sourceMappingURL=helpers.js.map

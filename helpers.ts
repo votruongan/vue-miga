@@ -1,4 +1,4 @@
-import {MethodDeclaration, Node, ObjectLiteralExpression, PropertyAssignment, ReturnStatement, SourceFile, ts} from "ts-morph";
+import {ArrowFunction, FunctionDeclaration, FunctionExpression, GetAccessorDeclaration, MethodDeclaration, Node, ObjectLiteralExpression, PropertyAssignment, ReturnStatement, SourceFile, ts} from "ts-morph";
 import {isEmpty} from "lodash";
 import { OutputMapper } from "./models/mapperModel";
 
@@ -105,4 +105,14 @@ export function constructMainOutputMapper(outputFile: SourceFile, oldMapper?: Ou
         copyObjectValue(outputMapper, oldMapper);
     }
     return outputMapper;
+}
+
+// get the function name of the block
+export function getBlockFunctionName(block) {
+    let parent = block.getParent().getName ? block.getParent() : block.getParent().getParent();
+    return (parent as MethodDeclaration).getName ? parent : null;
+}
+
+export function getParamsString(method: MethodDeclaration | ArrowFunction | FunctionExpression | FunctionDeclaration | GetAccessorDeclaration): string {
+    return method.getParameters().map(p => p.print()).join(', ');
 }

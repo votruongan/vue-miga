@@ -22,6 +22,9 @@ class InputMapper extends Mapper {
         this.beforeDestroy = {};
         this.destroyed = {};
         this.methods = {};
+        this.importedIdentifierNames = [];
+        this.localFileVariableNames = [];
+        this.localFileFunctionNames = [];
         this.propNames = [];
         this.dataProps = [];
         this.computedNames = [];

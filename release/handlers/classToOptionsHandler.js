@@ -49,12 +49,10 @@ function mapComputed(decoratorObject, mainClass) {
     const computedObject = decoratorObject.addPropertyAssignment({
         name: 'computed', initializer: `{}`,
     }).getInitializer();
-    getAccessors.forEach(p => {
-        const name = p.getName();
+    getAccessors.forEach(computed => {
+        const name = computed.getName();
         //add the computed to computedObject
-        computedObject.addMethod({
-            name
-        }).getBody().replaceWithText(`${p.getBody().print()}`);
+        computedObject.addMethod({ name }).replaceWithText(`${name} (${(0, helpers_1.getParamsString)(computed)}) ${computed.getBody().print()}`);
     });
 }
 function mapWatch(decoratorObject, mainClass) {
@@ -71,9 +69,7 @@ function mapWatch(decoratorObject, mainClass) {
     watchMethods.forEach(watch => {
         const name = watch.getDecorator('Watch').getCallExpression().getArguments()[0].getLiteralText();
         //add the method to watchObject
-        watchObject.addMethod({
-            name
-        }).getBody().replaceWithText(`${watch.getBody().print()}`);
+        watchObject.addMethod({ name }).replaceWithText(`${name} (${(0, helpers_1.getParamsString)(watch)}) ${watch.getBody().print()}`);
         watchNames.push(watch.getName());
     });
     return watchNames;
@@ -84,6 +80,7 @@ function mapMethod(decoratorObject, mainClass, watchNames) {
     const methodNames = [];
     methods.forEach((m) => {
         const name = m.getName();
+        //hooks will have to be a new prop. Cannot declare in methods
         if (consts_1.AVAILABLE_HOOKS.find((h) => h.toLowerCase() === name) || name === 'created') {
             createHook(m, decoratorObject);
             return;

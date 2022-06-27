@@ -19,6 +19,9 @@ export class InputMapper extends Mapper {
     beforeDestroy: Object = {}
     destroyed: Object = {}
     methods: Object = {}
+    importedIdentifierNames: Array<string> = []
+    localFileVariableNames: Array<string> = []
+    localFileFunctionNames: Array<string> = []
     propNames: Array<string> = []
     dataProps: Array<Object> = []
     computedNames: Array<string> = []

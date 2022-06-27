@@ -2,7 +2,7 @@ import { ts, SourceFile, ObjectBindingPattern, ReturnStatement, VariableDeclarat
 import { MethodDeclaration, ExportAssignment, CallExpression, FunctionDeclaration,
         ObjectLiteralExpression, PropertyAssignment, VariableDeclarationKind } from "ts-morph";
 import { AVAILABLE_HOOKS } from "../consts";
-import {getReturnedExpression} from "../helpers";
+import {getParamsString, getReturnedExpression} from "../helpers";
 
 export default function convertClassToOptions(mainClass: ClassDeclaration): ObjectLiteralElementLike[]{
     const decoratorExpression = mainClass.getDecorator('Component').getCallExpression();
@@ -53,12 +53,10 @@ function mapComputed(decoratorObject: ObjectLiteralExpression, mainClass: ClassD
     const computedObject = decoratorObject.addPropertyAssignment({
         name: 'computed', initializer: `{}`,
     }).getInitializer() as ObjectLiteralExpression;
-    getAccessors.forEach(p => {
-        const name = p.getName();
+    getAccessors.forEach(computed => {
+        const name = computed.getName();
         //add the computed to computedObject
-        computedObject.addMethod({
-            name
-        }).getBody().replaceWithText(`${p.getBody().print()}`)
+        computedObject.addMethod({ name }).replaceWithText(`${name} (${getParamsString(computed)}) ${computed.getBody().print()}`)
     })
 }
 
@@ -76,9 +74,7 @@ function mapWatch(decoratorObject: ObjectLiteralExpression, mainClass: ClassDecl
     watchMethods.forEach(watch => {
         const name = (watch.getDecorator('Watch').getCallExpression().getArguments()[0] as StringLiteral).getLiteralText();
         //add the method to watchObject
-        watchObject.addMethod({
-            name
-        }).getBody().replaceWithText(`${watch.getBody().print()}`)
+        watchObject.addMethod({ name }).replaceWithText(`${name} (${getParamsString(watch)}) ${watch.getBody().print()}`)
         watchNames.push(watch.getName());
     })
     return watchNames;
@@ -90,6 +86,7 @@ function mapMethod(decoratorObject: ObjectLiteralExpression, mainClass: ClassDec
     const methodNames: string[] = [];
     methods.forEach((m) => {
         const name = m.getName();
+        //hooks will have to be a new prop. Cannot declare in methods
         if (AVAILABLE_HOOKS.find((h) => h.toLowerCase() === name) || name === 'created'){
             createHook(m, decoratorObject)
             return;
