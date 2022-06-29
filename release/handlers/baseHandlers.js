@@ -159,11 +159,13 @@ function methodsHandler(inputMapper, outputMapper) {
     inputMapper.methodNames = [];
     let methodString = '';
     methodDeclares.forEach((method) => {
+        var _a;
         inputMapper.methodNames.push(method.getName());
         const paramsString = (0, helpers_1.getParamsString)(method);
+        const mType = (_a = method.getReturnTypeNode()) === null || _a === void 0 ? void 0 : _a.getText();
         methodString = `const ${method.getName()} = `;
         methodString += method.isAsync() ? `async ` : '';
-        methodString += `(${paramsString}) => ${method.getBody().print()}`;
+        methodString += `(${paramsString})${mType ? `: ${mType}` : ''} => ${method.getBody().print()}`;
         functionStrings.push(methodString);
     });
     const statements = oSetup.addStatements(functionStrings);

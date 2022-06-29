@@ -159,9 +159,10 @@ function methodsHandler(inputMapper: InputMapper, outputMapper: OutputMapper){
     methodDeclares.forEach((method) => {
         inputMapper.methodNames.push(method.getName())
         const paramsString = getParamsString(method);
+        const mType = method.getReturnTypeNode()?.getText();
         methodString = `const ${method.getName()} = `;
         methodString += method.isAsync() ? `async ` : '';
-        methodString += `(${paramsString}) => ${method.getBody().print()}`;
+        methodString += `(${paramsString})${mType ? `: ${mType}` : ''} => ${method.getBody().print()}`;
         functionStrings.push(methodString);
     })
     const statements = oSetup.addStatements(functionStrings);

@@ -51,9 +51,11 @@ function mapComputed(decoratorObject, mainClass) {
         name: 'computed', initializer: `{}`,
     }).getInitializer();
     getAccessors.forEach(computed => {
+        var _a;
         const name = computed.getName();
+        const type = (_a = computed.getReturnTypeNode()) === null || _a === void 0 ? void 0 : _a.getText();
         //add the computed to computedObject
-        computedObject.addMethod({ name }).replaceWithText(`${name} (${(0, helpers_1.getParamsString)(computed)}) ${computed.getBody().print()}`);
+        computedObject.addMethod({ name }).replaceWithText(`${name} (${(0, helpers_1.getParamsString)(computed)})${type ? `: ${type}` : ''} ${computed.getBody().print()}`);
     });
 }
 function mapWatch(decoratorObject, mainClass) {

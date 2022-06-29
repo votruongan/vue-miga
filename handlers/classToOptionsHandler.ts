@@ -56,8 +56,9 @@ function mapComputed(decoratorObject: ObjectLiteralExpression, mainClass: ClassD
     }).getInitializer() as ObjectLiteralExpression;
     getAccessors.forEach(computed => {
         const name = computed.getName();
+        const type = computed.getReturnTypeNode()?.getText();
         //add the computed to computedObject
-        computedObject.addMethod({ name }).replaceWithText(`${name} (${getParamsString(computed)}) ${computed.getBody().print()}`)
+        computedObject.addMethod({ name }).replaceWithText(`${name} (${getParamsString(computed)})${type ? `: ${type}` : ''} ${computed.getBody().print()}`)
     })
 }
 

@@ -21,24 +21,29 @@ exports.computedAsCall = computedAsCall;
 function computedAsObject(inputMapper) {
     const iComputed = inputMapper.computed;
     const res = [];
-    let body = {};
+    let body = {}, type = {};
     iComputed.getProperties().forEach((prop) => {
         const name = prop.getFirstChild().getText();
         inputMapper.computedNames.push(name);
         switch (prop.getKind()) {
             case ts_morph_1.ts.SyntaxKind.MethodDeclaration:
+                prop = prop;
                 (0, helpers_1.processThisKeywordAccess)(prop, inputMapper);
                 body = prop.getBody();
+                type = prop.getReturnTypeNode()?.getText();
                 break;
             case ts_morph_1.ts.SyntaxKind.PropertyAssignment:
-                const propBody = prop.getChildAtIndex(2);
+                //check if the property is arrow function or function expression
+                const propBody = prop.getInitializer();
                 (0, helpers_1.processThisKeywordAccess)(propBody, inputMapper);
-                if (propBody.getKind() === ts_morph_1.ts.SyntaxKind.ArrowFunction)
+                if (propBody.isKind(ts_morph_1.ts.SyntaxKind.ArrowFunction) || propBody.isKind(ts_morph_1.ts.SyntaxKind.FunctionExpression)) {
                     body = propBody.getBody();
+                    type = propBody.getReturnTypeNode().getText();
+                }
                 else
                     throw `computed key '${name}' is not a function`;
         }
-        res.push(`const ${name} = computed(() => ${body.getText()})`);
+        res.push(`const ${name} = computed${type ? `<${type}>` : ''}(()${type ? `: ${type}` : ''} => ${body.getText()})`);
     });
     return res;
 }

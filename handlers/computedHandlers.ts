@@ -1,4 +1,4 @@
-import { ts, SourceFile, ObjectBindingPattern, ReturnStatement, VariableDeclarationStructure } from "ts-morph";
+import { ts, SourceFile, ObjectBindingPattern, ReturnStatement, VariableDeclarationStructure, Node, FunctionExpression } from "ts-morph";
 import { MethodDeclaration, ExportAssignment, CallExpression, ArrowFunction,
         ObjectLiteralExpression, PropertyAssignment, VariableDeclarationKind} from "ts-morph";
 import {processThisKeywordAccess} from "../helpers";
@@ -22,23 +22,28 @@ export function computedAsCall(inputMapper: InputMapper): string[] {
 export function computedAsObject(inputMapper: InputMapper) {
     const iComputed = inputMapper.computed as ObjectLiteralExpression;
     const res = [];
-    let body = {};
+    let body = {}, type = {};
     (iComputed as ObjectLiteralExpression).getProperties().forEach((prop) => {
         const name = prop.getFirstChild().getText()
         inputMapper.computedNames.push(name);
         switch (prop.getKind()){
             case ts.SyntaxKind.MethodDeclaration:
-                processThisKeywordAccess(prop as MethodDeclaration, inputMapper);
-                body = (prop as MethodDeclaration).getBody();
+                prop = prop as MethodDeclaration;
+                processThisKeywordAccess(prop, inputMapper);
+                body = prop.getBody();
+                type = prop.getReturnTypeNode().getText();
                 break;
             case ts.SyntaxKind.PropertyAssignment:
-                const propBody = prop.getChildAtIndex(2);
-                processThisKeywordAccess(propBody as MethodDeclaration, inputMapper);
-                if (propBody.getKind() === ts.SyntaxKind.ArrowFunction)
-                    body = (propBody as ArrowFunction).getBody();
+                //check if the property is arrow function or function expression
+                const propBody = (prop as PropertyAssignment).getInitializer() as Node;
+                processThisKeywordAccess(propBody, inputMapper);
+                if (propBody.isKind(ts.SyntaxKind.ArrowFunction) || propBody.isKind(ts.SyntaxKind.FunctionExpression)){
+                    body = (propBody as FunctionExpression).getBody();
+                    type = (propBody as FunctionExpression).getReturnTypeNode().getText();
+                }
                 else throw `computed key '${name}' is not a function`
         }
-        res.push(`const ${name} = computed(() => ${(body as ts.Node).getText()})`)
+        res.push(`const ${name} = computed${type ? `<${type}>` : ''}(()${type ? `: ${type}`: ''} => ${(body as ts.Node).getText()})`)
     })
     return res;
 }
