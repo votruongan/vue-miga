@@ -64,17 +64,21 @@ function mapComputed(decoratorObject: ObjectLiteralExpression, mainClass: ClassD
 
 function mapWatch(decoratorObject: ObjectLiteralExpression, mainClass: ClassDeclaration){
     //Get all method that have @Watch
-    const watchMethods = mainClass.getDescendantsOfKind(ts.SyntaxKind.Decorator)
+    const allWatchMethods = mainClass.getDescendantsOfKind(ts.SyntaxKind.Decorator)
                             .filter((d) => d.getCallExpression().getExpression().print() === 'Watch')
                             .map((d) => d.getParent()) as MethodDeclaration[];
-    if (watchMethods.length == 0)
+    if (allWatchMethods.length == 0)
         return;
+    const watchMethods = new Set(allWatchMethods)
     const watchObject = decoratorObject.addPropertyAssignment({
         name: 'watch', initializer: `{}`,
     }).getInitializer() as ObjectLiteralExpression;
     const watchNames = []
+    let tmpWatch = []
     watchMethods.forEach(watch => {
-        const name = (watch.getDecorator('Watch').getCallExpression().getArguments()[0] as StringLiteral).getLiteralText();
+        const allWatchVars = watch.getDecorators().filter(d => d.getCallExpression().getExpression().print() === 'Watch').map(d => d.getCallExpression().getArguments()[0].print());
+        const name = allWatchVars.length > 1 ? `[${allWatchVars.join(', ')}]` : allWatchVars[0];
+        // const name = (watch.getDecorator('Watch').getCallExpression().getArguments()[0] as StringLiteral).getLiteralText();
         //add the method to watchObject
         watchObject.addMethod({ name }).replaceWithText(`${name} (${getParamsString(watch)}) ${watch.getBody().print()}`)
         watchNames.push(watch.getName());

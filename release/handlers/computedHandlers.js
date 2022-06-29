@@ -22,7 +22,9 @@ function computedAsObject(inputMapper) {
     const iComputed = inputMapper.computed;
     const res = [];
     let body = {}, type = {};
-    iComputed.getProperties().forEach((prop) => {
+    iComputed.getProperties().
+    forEach((prop) => {
+        var _a, _b;
         const name = prop.getFirstChild().getText();
         inputMapper.computedNames.push(name);
         switch (prop.getKind()) {
@@ -30,7 +32,7 @@ function computedAsObject(inputMapper) {
                 prop = prop;
                 (0, helpers_1.processThisKeywordAccess)(prop, inputMapper);
                 body = prop.getBody();
-                type = prop.getReturnTypeNode()?.getText();
+                type = (_a = prop.getReturnTypeNode()) === null || _a === void 0 ? void 0 : _a.getText();
                 break;
             case ts_morph_1.ts.SyntaxKind.PropertyAssignment:
                 //check if the property is arrow function or function expression
@@ -38,7 +40,7 @@ function computedAsObject(inputMapper) {
                 (0, helpers_1.processThisKeywordAccess)(propBody, inputMapper);
                 if (propBody.isKind(ts_morph_1.ts.SyntaxKind.ArrowFunction) || propBody.isKind(ts_morph_1.ts.SyntaxKind.FunctionExpression)) {
                     body = propBody.getBody();
-                    type = propBody.getReturnTypeNode().getText();
+                    type = (_b = propBody.getReturnTypeNode()) === null || _b === void 0 ? void 0 : _b.getText();
                 }
                 else
                     throw `computed key '${name}' is not a function`;

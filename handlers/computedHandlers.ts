@@ -31,7 +31,7 @@ export function computedAsObject(inputMapper: InputMapper) {
                 prop = prop as MethodDeclaration;
                 processThisKeywordAccess(prop, inputMapper);
                 body = prop.getBody();
-                type = prop.getReturnTypeNode().getText();
+                type = prop.getReturnTypeNode()?.getText();
                 break;
             case ts.SyntaxKind.PropertyAssignment:
                 //check if the property is arrow function or function expression
@@ -39,7 +39,7 @@ export function computedAsObject(inputMapper: InputMapper) {
                 processThisKeywordAccess(propBody, inputMapper);
                 if (propBody.isKind(ts.SyntaxKind.ArrowFunction) || propBody.isKind(ts.SyntaxKind.FunctionExpression)){
                     body = (propBody as FunctionExpression).getBody();
-                    type = (propBody as FunctionExpression).getReturnTypeNode().getText();
+                    type = (propBody as FunctionExpression).getReturnTypeNode()?.getText();
                 }
                 else throw `computed key '${name}' is not a function`
         }
