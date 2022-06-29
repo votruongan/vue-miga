@@ -1,4 +1,4 @@
-import { ts, SourceFile, ObjectBindingPattern, ReturnStatement, VariableDeclarationStructure, ParameterDeclaration, ObjectLiteralElementLike, ClassDeclaration, StringLiteral, MethodDeclarationStructure, StructureKind } from "ts-morph";
+import { ts, SourceFile, ObjectBindingPattern, ReturnStatement, VariableDeclarationStructure, ParameterDeclaration, ObjectLiteralElementLike, ClassDeclaration, StringLiteral, MethodDeclarationStructure, StructureKind, PropertyAssignmentStructure } from "ts-morph";
 import { MethodDeclaration, ExportAssignment, CallExpression, FunctionDeclaration,
         ObjectLiteralExpression, PropertyAssignment, VariableDeclarationKind } from "ts-morph";
 import { AVAILABLE_HOOKS } from "../consts";
@@ -29,19 +29,20 @@ function mapData(decoratorObject: ObjectLiteralExpression, mainClass: ClassDecla
     const propsNames = ((decoratorObject.getProperty('props') as PropertyAssignment)
                         ?.getInitializer() as ObjectLiteralExpression)
                         ?.getProperties().map((p: PropertyAssignment) => p.getName())
-    const dataMethod = decoratorObject.addMethod({
-        name: 'data',
-        statements: [`return {}`]
-    });
-    const dataObject = getReturnedExpression(dataMethod) as ObjectLiteralExpression;
     const assigns = []
     dataDeclares.forEach(p => {
         const name = p.getName();
         //this data is a property -> skip this
         if (propsNames.includes(name))
             return;
-        assigns.push({ name, initializer: p.getInitializer().print() })
+        assigns.push({ name, initializer: p.getInitializer().print(), kind: 40, type: p.getChildAtIndex(2).getText()})
     })
+    const dataMethod = decoratorObject.addMethod({
+        name: 'data',
+        statements: [`return {}`],
+        returnType: `{${assigns.map(a => `${a.name}: ${a.type}`).join(', ')}}`,
+    });
+    const dataObject = getReturnedExpression(dataMethod) as ObjectLiteralExpression;
     //add the data to dataPlace in batch
     dataObject.addPropertyAssignments(assigns)
 }

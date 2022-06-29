@@ -26,19 +26,20 @@ function mapData(decoratorObject, mainClass) {
     if (dataDeclares.length == 0)
         return;
     const propsNames = (_b = (_a = decoratorObject.getProperty('props')) === null || _a === void 0 ? void 0 : _a.getInitializer()) === null || _b === void 0 ? void 0 : _b.getProperties().map((p) => p.getName());
-    const dataMethod = decoratorObject.addMethod({
-        name: 'data',
-        statements: [`return {}`]
-    });
-    const dataObject = (0, helpers_1.getReturnedExpression)(dataMethod);
     const assigns = [];
     dataDeclares.forEach(p => {
         const name = p.getName();
         //this data is a property -> skip this
         if (propsNames.includes(name))
             return;
-        assigns.push({ name, initializer: p.getInitializer().print() });
+        assigns.push({ name, initializer: p.getInitializer().print(), kind: 40, type: p.getChildAtIndex(2).getText() });
     });
+    const dataMethod = decoratorObject.addMethod({
+        name: 'data',
+        statements: [`return {}`],
+        returnType: `{${assigns.map(a => `${a.name}: ${a.type}`).join(', ')}}`,
+    });
+    const dataObject = (0, helpers_1.getReturnedExpression)(dataMethod);
     //add the data to dataPlace in batch
     dataObject.addPropertyAssignments(assigns);
 }

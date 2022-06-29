@@ -53,7 +53,6 @@ export default function makeVue3CodeFromVue2Export(inputSource: SourceFile, outp
         }
         if (inputMapper[key]) inputMapper[key] = value;
     })
-    inputMapper.data = getReturnedExpression(inputMapper.data) as ObjectLiteralExpression;
     handleMapping(inputSource, inputMapper, outputFile)
     return outputFile.print();
 }
@@ -109,11 +108,18 @@ function dataHandler(inputMapper: InputMapper, outputMapper: OutputMapper){
     if (isNodeEmpty(inputMapper.data)) return;
     outputMapper.newCompositionImports.push("ref");
     const oSetup = (outputMapper.setup as MethodDeclaration);
-    const iData = inputMapper.data as ObjectLiteralExpression;
-    const dataProps = (iData as ObjectLiteralExpression).getProperties()
-                        .map((prop: PropertyAssignment) => ({name: prop.getName(), value: prop.getInitializer().print()}));
+    const iData = inputMapper.data.getParent() as MethodDeclaration;
+    const dataProps = (getReturnedExpression(iData.getBody()) as ObjectLiteralExpression).getProperties();
     inputMapper.dataProps = dataProps;
-    const declarations = dataProps.map<VariableDeclarationStructure>((p) => ({name: p.name, initializer: `ref(${p.value})`, kind: 40}))
+    //Create an object to map type in data properties
+    const dataType = {}
+    iData.getFirstChildByKind(ts.SyntaxKind.TypeLiteral)?.getProperties().forEach((p) => dataType[p.getName()] = p.getChildAtIndex(2).getText());
+    //Prepare data declaration in new setup
+    const declarations = dataProps.map<VariableDeclarationStructure>((p: PropertyAssignment) => {
+        const name = p.getName();
+        const initString = `ref<${dataType?.[name] || 'any'}>(${p.getInitializer().print()})`;
+        return {name, initializer: initString, kind: 40}
+    })
     oSetup.addVariableStatements([{
         declarationKind: VariableDeclarationKind.Const,
         declarations,
@@ -203,7 +209,7 @@ function setupReturnHandler(inputMapper: InputMapper, outputMapper: OutputMapper
     const oSetup = (outputMapper.setup as MethodDeclaration);
     const rStatement = oSetup.addStatements(["return {}"])[0] as ReturnStatement;
     //combine dataProps, computedNames, methodNames in inputMapper (props is exported implicically in object)
-    const returnNames = inputMapper.dataProps.map(p => p.name).concat(inputMapper.computedNames, inputMapper.methodNames);
+    const returnNames = inputMapper.dataProps.map(p => p.getName()).concat(inputMapper.computedNames, inputMapper.methodNames);
     (rStatement.getExpression() as ObjectLiteralExpression).addShorthandPropertyAssignments(returnNames.map(name => ({name})));
 }
 

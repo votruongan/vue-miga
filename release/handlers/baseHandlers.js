@@ -55,7 +55,6 @@ function makeVue3CodeFromVue2Export(inputSource, outputFile) {
         if (inputMapper[key])
             inputMapper[key] = value;
     });
-    inputMapper.data = (0, helpers_1.getReturnedExpression)(inputMapper.data);
     handleMapping(inputSource, inputMapper, outputFile);
     return outputFile.print();
 }
@@ -107,15 +106,23 @@ function propsHandler(inputMapper, outputMapper) {
     }).replaceWithText(str);
 }
 function dataHandler(inputMapper, outputMapper) {
+    var _a;
     if ((0, helpers_1.isNodeEmpty)(inputMapper.data))
         return;
     outputMapper.newCompositionImports.push("ref");
     const oSetup = outputMapper.setup;
-    const iData = inputMapper.data;
-    const dataProps = iData.getProperties()
-        .map((prop) => ({ name: prop.getName(), value: prop.getInitializer().print() }));
+    const iData = inputMapper.data.getParent();
+    const dataProps = (0, helpers_1.getReturnedExpression)(iData.getBody()).getProperties();
     inputMapper.dataProps = dataProps;
-    const declarations = dataProps.map((p) => ({ name: p.name, initializer: `ref(${p.value})`, kind: 40 }));
+    //Create an object to map type in data properties
+    const dataType = {};
+    (_a = iData.getFirstChildByKind(ts_morph_1.ts.SyntaxKind.TypeLiteral)) === null || _a === void 0 ? void 0 : _a.getProperties().forEach((p) => dataType[p.getName()] = p.getChildAtIndex(2).getText());
+    //Prepare data declaration in new setup
+    const declarations = dataProps.map((p) => {
+        const name = p.getName();
+        const initString = `ref<${(dataType === null || dataType === void 0 ? void 0 : dataType[name]) || 'any'}>(${p.getInitializer().print()})`;
+        return { name, initializer: initString, kind: 40 };
+    });
     oSetup.addVariableStatements([{
             declarationKind: ts_morph_2.VariableDeclarationKind.Const,
             declarations,
@@ -200,7 +207,7 @@ function setupReturnHandler(inputMapper, outputMapper) {
     const oSetup = outputMapper.setup;
     const rStatement = oSetup.addStatements(["return {}"])[0];
     //combine dataProps, computedNames, methodNames in inputMapper (props is exported implicically in object)
-    const returnNames = inputMapper.dataProps.map(p => p.name).concat(inputMapper.computedNames, inputMapper.methodNames);
+    const returnNames = inputMapper.dataProps.map(p => p.getName()).concat(inputMapper.computedNames, inputMapper.methodNames);
     rStatement.getExpression().addShorthandPropertyAssignments(returnNames.map(name => ({ name })));
 }
 function markUnsureExpression(inputMapper, outputMapper) {
