@@ -12,6 +12,7 @@ function convertClassToOptions(mainClass) {
         decoratorExpression.addArgument(`{}`);
     }
     const decoratorObject = decoratorExpression.getArguments()[0];
+    mapMixins(decoratorObject, mainClass);
     mapData(decoratorObject, mainClass);
     mapComputed(decoratorObject, mainClass);
     const watchNames = mapWatch(decoratorObject, mainClass);
@@ -103,6 +104,24 @@ function mapMethod(decoratorObject, mainClass, watchNames) {
     methodNames.forEach((name, index) => {
         methodsObject.addMethod({ name }).replaceWithText(realMethods[index]);
     });
+}
+function mapMixins(decoratorObject, mainClass) {
+    const afterExtendsExpression = mainClass.getHeritageClauses().filter((h) => h.getToken() === ts_morph_1.ts.SyntaxKind.ExtendsKeyword)[0].getTypeNodes()[0];
+    if (afterExtendsExpression.getText() === "Vue")
+        return;
+    let args = [];
+    if (afterExtendsExpression.getExpression().isKind(ts_morph_1.ts.SyntaxKind.CallExpression)) {
+        const callName = afterExtendsExpression.getExpression();
+        if (callName.getExpression().getText().toLowerCase() !== "mixins")
+            return;
+        args = callName.getArguments().map(a => a.getText());
+    }
+    if (args.length === 0)
+        return;
+    const mixinsObject = decoratorObject.addPropertyAssignment({
+        name: 'mixins', initializer: `[]`,
+    }).getInitializer();
+    mixinsObject.addElements(args);
 }
 function createHook(hookData, decoratorObject) {
     decoratorObject.addMethod({ name: hookData.getName(), }).replaceWithText(hookData.print());

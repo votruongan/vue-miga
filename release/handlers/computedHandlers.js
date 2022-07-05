@@ -22,8 +22,7 @@ function computedAsObject(inputMapper) {
     const iComputed = inputMapper.computed;
     const res = [];
     let body = {}, type = {};
-    iComputed.getProperties().
-    forEach((prop) => {
+    iComputed.getProperties().forEach((prop) => {
         var _a, _b;
         const name = prop.getFirstChild().getText();
         inputMapper.computedNames.push(name);

@@ -1,4 +1,4 @@
-import { ts, SourceFile, ObjectBindingPattern, ReturnStatement, VariableDeclarationStructure, ParameterDeclaration, ObjectLiteralElementLike, ClassDeclaration, StringLiteral, MethodDeclarationStructure, StructureKind, PropertyAssignmentStructure } from "ts-morph";
+import { ts, SourceFile, ObjectBindingPattern, ReturnStatement, VariableDeclarationStructure, ParameterDeclaration, ObjectLiteralElementLike, ClassDeclaration, StringLiteral, MethodDeclarationStructure, StructureKind, PropertyAssignmentStructure, ArrayLiteralExpression } from "ts-morph";
 import { MethodDeclaration, ExportAssignment, CallExpression, FunctionDeclaration,
         ObjectLiteralExpression, PropertyAssignment, VariableDeclarationKind } from "ts-morph";
 import { AVAILABLE_HOOKS } from "../consts";
@@ -13,6 +13,7 @@ export default function convertClassToOptions(mainClass: ClassDeclaration): Obje
     }
     const decoratorObject = decoratorExpression.getArguments()[0] as ObjectLiteralExpression;
 
+    mapMixins(decoratorObject, mainClass);
     mapData(decoratorObject, mainClass);
     mapComputed(decoratorObject, mainClass);
     const watchNames = mapWatch(decoratorObject, mainClass);
@@ -108,6 +109,25 @@ function mapMethod(decoratorObject: ObjectLiteralExpression, mainClass: ClassDec
     methodNames.forEach((name, index) => {
         methodsObject.addMethod({name}).replaceWithText(realMethods[index])
     })
+}
+
+function mapMixins(decoratorObject: ObjectLiteralExpression, mainClass: ClassDeclaration){
+    const afterExtendsExpression = mainClass.getHeritageClauses().filter((h) => h.getToken() === ts.SyntaxKind.ExtendsKeyword)[0].getTypeNodes()[0];
+    if (afterExtendsExpression.getText() === "Vue")
+        return;
+    let args = []
+    if (afterExtendsExpression.getExpression().isKind(ts.SyntaxKind.CallExpression)){
+        const callName = afterExtendsExpression.getExpression() as CallExpression
+        if (callName.getExpression().getText().toLowerCase() !== "mixins")
+            return;
+        args = callName.getArguments().map(a => a.getText());
+    }
+    if (args.length === 0)
+        return;
+    const mixinsObject = decoratorObject.addPropertyAssignment({
+        name: 'mixins', initializer: `[]`,
+    }).getInitializer() as ArrayLiteralExpression;
+    mixinsObject.addElements(args);
 }
 
 function createHook(hookData: MethodDeclaration, decoratorObject: ObjectLiteralExpression){
