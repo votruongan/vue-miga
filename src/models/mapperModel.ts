@@ -1,3 +1,6 @@
+import { ObjectLiteralExpression } from "ts-morph"
+import { ImportPayload } from "./payload"
+
 type Object = Record<string, any> 
 
 
@@ -26,10 +29,13 @@ export class InputMapper extends Mapper {
     dataProps: Array<Object> = []
     computedNames: Array<string> = []
     methodNames: Array<string> = []
+    emitsNames: Set<string> = new Set<string>()
+    refsNames: Set<string> = new Set<string>()
     isComputedResolved: boolean = true
 }
 
 export class OutputMapper extends Mapper {
-    exportedObject: Object = {}
+    exportedObject?: ObjectLiteralExpression
     newCompositionImports: Array<string> = ['defineComponent']
+    otherImports: Record<string, ImportPayload> = {}
 }

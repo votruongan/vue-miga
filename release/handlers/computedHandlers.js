@@ -18,7 +18,7 @@ function computedAsCall(inputMapper) {
     return [];
 }
 exports.computedAsCall = computedAsCall;
-function computedAsObject(inputMapper) {
+function computedAsObject(inputMapper, outputMapper) {
     const iComputed = inputMapper.computed;
     const res = [];
     let body = {}, type = {};
@@ -29,14 +29,14 @@ function computedAsObject(inputMapper) {
         switch (prop.getKind()) {
             case ts_morph_1.ts.SyntaxKind.MethodDeclaration:
                 prop = prop;
-                (0, helpers_1.processThisKeywordAccess)(prop, inputMapper);
+                (0, helpers_1.processThisKeywordAccess)(prop, inputMapper, outputMapper);
                 body = prop.getBody();
                 type = (_a = prop.getReturnTypeNode()) === null || _a === void 0 ? void 0 : _a.getText();
                 break;
             case ts_morph_1.ts.SyntaxKind.PropertyAssignment:
                 //check if the property is arrow function or function expression
                 const propBody = prop.getInitializer();
-                (0, helpers_1.processThisKeywordAccess)(propBody, inputMapper);
+                (0, helpers_1.processThisKeywordAccess)(propBody, inputMapper, outputMapper);
                 if (propBody.isKind(ts_morph_1.ts.SyntaxKind.ArrowFunction) || propBody.isKind(ts_morph_1.ts.SyntaxKind.FunctionExpression)) {
                     body = propBody.getBody();
                     type = (_b = propBody.getReturnTypeNode()) === null || _b === void 0 ? void 0 : _b.getText();

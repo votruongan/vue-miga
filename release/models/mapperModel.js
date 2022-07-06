@@ -29,6 +29,8 @@ class InputMapper extends Mapper {
         this.dataProps = [];
         this.computedNames = [];
         this.methodNames = [];
+        this.emitsNames = new Set();
+        this.refsNames = new Set();
         this.isComputedResolved = true;
     }
 }
@@ -36,8 +38,8 @@ exports.InputMapper = InputMapper;
 class OutputMapper extends Mapper {
     constructor() {
         super(...arguments);
-        this.exportedObject = {};
         this.newCompositionImports = ['defineComponent'];
+        this.otherImports = {};
     }
 }
 exports.OutputMapper = OutputMapper;

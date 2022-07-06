@@ -1,7 +1,7 @@
-import { ts, SourceFile, ReturnStatement, VariableDeclarationStructure, ParameterDeclaration, ObjectLiteralElementLike, VariableStatement, ArrowFunction, NamedImports } from "ts-morph";
+import { ts, SourceFile, ReturnStatement, VariableDeclarationStructure, ParameterDeclaration, ObjectLiteralElementLike, VariableStatement, ArrowFunction, NamedImports, ImportDeclarationStructure } from "ts-morph";
 import { MethodDeclaration, CallExpression, FunctionDeclaration, VariableDeclaration,
         ObjectLiteralExpression, PropertyAssignment, VariableDeclarationKind} from "ts-morph";
-import { BUILTIN_IDENTIFIERS, UNRESOLVED_PROPERTY, UNSURE_EXPRESSION } from "../consts";
+import { BUILTIN_IDENTIFIERS, TRANSFORMED_IDENTIFIERS, UNRESOLVED_PROPERTY, UNSURE_EXPRESSION } from "../consts";
 import {cloneObject, findExportNode, processThisKeywordAccess, isNodeEmpty, addComment,
         getReturnedExpression, copyObjectToProperyAssignment, constructMainOutputMapper, getBlockFunctionName, getParamsString} from "../helpers";
 import { InputMapper, OutputMapper } from "../models/mapperModel";
@@ -9,6 +9,7 @@ import {computedAsObject, computedAsCall} from "./computedHandlers"
 import {mixinsToComposables} from "./mixinsHandler"
 import handleHooks from "./hooksHandler"
 import convertClassToOptions from "./classToOptionsHandler";
+import { HandlerPayload } from "../models/payload";
 
 export default function makeVue3CodeFromVue2Export(inputSource: SourceFile, outputFile: SourceFile): string {
     //prepare template object
@@ -58,28 +59,38 @@ export default function makeVue3CodeFromVue2Export(inputSource: SourceFile, outp
 }
 
 //apply the mapping to templateObject
-function handleMapping(inputSource: SourceFile, inputMapper: InputMapper, outputFile: SourceFile) {
-    const outputMapper = constructMainOutputMapper(outputFile);
+function handleMapping(inputSource: SourceFile, inputMapper: InputMapper, outputSource: SourceFile) {
+    const outputMapper = constructMainOutputMapper(outputSource);
     //copy codes in the file that don't belong to component
-    copyOtherCode(inputSource, inputMapper, outputFile);
+    copyOtherCode(inputSource, inputMapper, outputSource);
     //start mapping
+    const payload: HandlerPayload = {
+        inputSource, inputMapper, outputMapper, outputSource
+    }
     console.log(' - handling data, props');
     componentsHandler(inputMapper, outputMapper);
     propsHandler(inputMapper, outputMapper);
     dataHandler(inputMapper, outputMapper);
     console.log(' - handling mixins');
-    mixinsToComposables(inputMapper, outputMapper);
+    mixinsToComposables(payload);
     console.log(' - handling computed, methods, watch');
     computedHandler(inputMapper, outputMapper);
     methodsHandler(inputMapper, outputMapper);
     watchHandler(inputMapper, outputMapper);
     console.log(' - handling hooks');
     handleHooks(inputMapper, outputMapper);
+    //Declare $refs as new ref
+    declareRefsAndEmits(inputMapper, outputMapper);
     setupReturnHandler(inputMapper, outputMapper);
     console.log(' - marking unsure expressions');
+    const oImports = outputMapper.otherImports;
+    const imports : ImportDeclarationStructure[] = Object.keys(oImports).map(key => ({
+        moduleSpecifier: key, namedImports: Array.from(oImports[key].namedImports || []), defaultImport: oImports[key].defaultImport, kind: 16,
+    }))
     markUnsureExpression(inputMapper, outputMapper);
     //finally add imported functions from vue-composition-api
-    outputFile.addImportDeclaration({moduleSpecifier: "@vue/composition-api", namedImports: outputMapper.newCompositionImports});
+    outputSource.addImportDeclarations(imports);
+    outputSource.addImportDeclaration({moduleSpecifier: "@vue/composition-api", namedImports: outputMapper.newCompositionImports});
 }
 
 function componentsHandler(inputMapper: InputMapper, outputMapper: OutputMapper){
@@ -105,11 +116,11 @@ function propsHandler(inputMapper: InputMapper, outputMapper: OutputMapper){
 }
 
 function dataHandler(inputMapper: InputMapper, outputMapper: OutputMapper){
-    if (isNodeEmpty(inputMapper.data)) return;
-    outputMapper.newCompositionImports.push("ref");
-    const oSetup = (outputMapper.setup as MethodDeclaration);
     const iData = inputMapper.data.getParent() as MethodDeclaration;
     const dataProps = (getReturnedExpression(iData.getBody()) as ObjectLiteralExpression).getProperties();
+    if (dataProps.length < 1) return;
+    outputMapper.newCompositionImports.push("ref");
+    const oSetup = (outputMapper.setup as MethodDeclaration);
     inputMapper.dataProps = dataProps;
     //Create an object to map type in data properties
     const dataType = {}
@@ -139,7 +150,7 @@ function computedHandler(inputMapper: InputMapper, outputMapper: OutputMapper){
             return;
             break;
         case ts.SyntaxKind.ObjectLiteralExpression:
-            computedStatements = computedAsObject(inputMapper);
+            computedStatements = computedAsObject(inputMapper, outputMapper);
             break;
         default: throw "Wrong computed type"
     }
@@ -169,7 +180,7 @@ function methodsHandler(inputMapper: InputMapper, outputMapper: OutputMapper){
 
     //clean this keywords from statements
     statements.forEach((statement) => {
-        processThisKeywordAccess(statement, inputMapper);
+        processThisKeywordAccess(statement, inputMapper, outputMapper);
     })
 }
 
@@ -202,7 +213,28 @@ function watchHandler(inputMapper: InputMapper, outputMapper: OutputMapper){
 
     //clean this keywords from statements
     statements.forEach((statement) => {
-        processThisKeywordAccess(statement, inputMapper);
+        processThisKeywordAccess(statement, inputMapper, outputMapper);
+    })
+}
+
+function declareRefsAndEmits(inputMapper: InputMapper, outputMapper: OutputMapper) {
+    if (inputMapper.refsNames.size < 1) return;
+    const oSetup = (outputMapper.setup as MethodDeclaration);
+    if (!outputMapper.newCompositionImports.includes('ref'))
+        outputMapper.newCompositionImports.push('ref');
+    //Prepare data declaration in new setup
+    const declarations = Array.from(inputMapper.refsNames).map<VariableDeclarationStructure>((name: string) => {
+        const initString = `ref<HTMLElement | null>(null)`;
+        return {name, initializer: initString, kind: 40}
+    })
+    oSetup.addVariableStatements([{
+        declarationKind: VariableDeclarationKind.Const,
+        declarations,
+    }]).forEach(n => n.setOrder(1));
+    //Add emits to output property of export object
+    if (inputMapper.emitsNames.size < 1) return;
+    outputMapper.exportedObject.addPropertyAssignment({
+        name: 'emits', initializer: `['${Array.from(inputMapper.emitsNames).join("', '")}']`,
     })
 }
 
@@ -210,7 +242,8 @@ function setupReturnHandler(inputMapper: InputMapper, outputMapper: OutputMapper
     const oSetup = (outputMapper.setup as MethodDeclaration);
     const rStatement = oSetup.addStatements(["return {}"])[0] as ReturnStatement;
     //combine dataProps, computedNames, methodNames in inputMapper (props is exported implicically in object)
-    const returnNames = inputMapper.dataProps.map(p => p.getName()).concat(inputMapper.computedNames, inputMapper.methodNames);
+    let returnNames = inputMapper.dataProps.map(p => p.getName()).concat(inputMapper.computedNames, inputMapper.methodNames);
+    returnNames = returnNames.concat(Array.from(inputMapper.refsNames));
     (rStatement.getExpression() as ObjectLiteralExpression).addShorthandPropertyAssignments(returnNames.map(name => ({name})));
 }
 
@@ -276,13 +309,21 @@ function isCallExpressionDefined(callExp: CallExpression, inputMapper: InputMapp
     const callName = callExp.getExpression().print();
     const check = inputMapper.methodNames.includes(callName) 
                 || inputMapper.localFileFunctionNames.includes(callName)
+                || callName.startsWith('context.')
+                || TRANSFORMED_IDENTIFIERS.find((iden) => callName.startsWith(iden))
                 || BUILTIN_IDENTIFIERS.find((iden) => callName.startsWith(iden))
                 || outputMapper.newCompositionImports.find((iden) => callName.startsWith(iden))
                 || inputMapper.importedIdentifierNames.find((iden) => callName.startsWith(iden));
                 
     if (check) return true;
 
-    //check if callName is in imports
+    //check if callName is in other imports
+    const oImports = outputMapper.otherImports;
+    const keys = Object.keys(oImports)
+    for (let key of keys) {
+        if (oImports[key].defaultImport === callName) return true;
+        if (oImports[key].namedImports?.has(callName)) return true;
+    }
 
     //Check if the call name is in the block scope
     const parentBlocks = callExp.getAncestors().filter(a => a.isKind(ts.SyntaxKind.Block))

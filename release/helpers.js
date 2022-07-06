@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getParamsString = exports.getBlockFunctionName = exports.constructMainOutputMapper = exports.copyObjectValue = exports.addComment = exports.copyObjectToProperyAssignment = exports.getReturnedExpression = exports.isNodeEmpty = exports.processThisKeywordAccess = exports.findExportNode = exports.checkVarIsComponentData = exports.cloneObject = exports.findScriptContent = void 0;
+exports.getParamsString = exports.getBlockFunctionName = exports.constructMainOutputMapper = exports.copyObjectValue = exports.addComment = exports.copyObjectToProperyAssignment = exports.getReturnedExpression = exports.isNodeEmpty = exports.processThisKeywordAccess = exports.initDeclareInSetup = exports.addImportToMapper = exports.findExportNode = exports.checkVarIsComponentData = exports.cloneObject = exports.findScriptContent = void 0;
 const ts_morph_1 = require("ts-morph");
 const lodash_1 = require("lodash");
 const mapperModel_1 = require("./models/mapperModel");
@@ -34,7 +34,7 @@ function checkVarIsComponentData(varName, inputMapper, methodArguments) {
     if (methodArguments === null || methodArguments === void 0 ? void 0 : methodArguments.includes(varName))
         return false;
     const isProp = inputMapper.propNames.includes(varName);
-    const isData = inputMapper.dataProps.find(data => data.name === varName);
+    const isData = inputMapper.dataProps.find((data) => data.getName() === varName);
     const isComputed = inputMapper.computedNames.includes(varName);
     return isProp || isData || isComputed;
 }
@@ -45,16 +45,64 @@ function findExportNode(sf) {
     return mainExport;
 }
 exports.findExportNode = findExportNode;
-function processThisKeywordAccess(method, inputMapper) {
+function addImportToMapper(outputMapper, importFile, importedVar) {
+    if (!outputMapper.otherImports[importFile])
+        outputMapper.otherImports[importFile] = {};
+    if (importedVar.defaultImport)
+        outputMapper.otherImports[importFile].defaultImport = importedVar.defaultImport;
+    if (importedVar.namedImportsArray) {
+        if (!outputMapper.otherImports[importFile].namedImports)
+            outputMapper.otherImports[importFile].namedImports = new Set();
+        importedVar.namedImportsArray.forEach(imp => outputMapper.otherImports[importFile].namedImports.add(imp));
+    }
+}
+exports.addImportToMapper = addImportToMapper;
+const declaredIdentifier = {};
+function initDeclareInSetup(outputMapper, declareName, initializer) {
+    if (declaredIdentifier[declareName])
+        return;
+    declaredIdentifier[declareName] = true;
+    const oSetup = outputMapper.setup;
+    oSetup.addVariableStatement({
+        declarationKind: ts_morph_1.VariableDeclarationKind.Const,
+        declarations: [{ name: declareName, initializer }]
+    }).setOrder(2);
+}
+exports.initDeclareInSetup = initDeclareInSetup;
+function processThisKeywordAccess(method, inputMapper, outputMapper) {
     method.getDescendantsOfKind(ts_morph_1.ts.SyntaxKind.ThisKeyword).forEach((thisKeyword) => {
         const par = thisKeyword.getParent();
         const thisAccessKey = par.getChildAtIndex(2).print();
         //replace if the accessing key is a data of component
         if (checkVarIsComponentData(thisAccessKey, inputMapper))
             par.replaceWithText(`${thisAccessKey}.value`);
-        else
-            //the accessing key is not data of component, could also be the argument of the function;
-            par.replaceWithText(thisAccessKey);
+        else {
+            switch (thisAccessKey) {
+                case '$lang':
+                    par.replaceWithText(`lang`);
+                    outputMapper && addImportToMapper(outputMapper, `@/lang/lang`, { defaultImport: `lang` });
+                    break;
+                case '$router':
+                    par.replaceWithText(`vRouter`);
+                    initDeclareInSetup(outputMapper, 'vRouter', 'useRouter()');
+                    outputMapper && addImportToMapper(outputMapper, `@/composables/root`, { namedImportsArray: [`useRouter`] });
+                    break;
+                case '$emit':
+                    const emitEvent = par.getParent().getArguments()[0];
+                    par.replaceWithText(`context.emit`);
+                    inputMapper.emitsNames.add(emitEvent.getLiteralText ? emitEvent.getLiteralText() : emitEvent.getText());
+                    break;
+                case '$refs':
+                    const refAccessNode = par.getParent().getChildAtIndex(2);
+                    const refAccess = refAccessNode.getLiteralText ? refAccessNode.getLiteralText() : refAccessNode.getText();
+                    inputMapper.refsNames.add(refAccess);
+                    par.getParent().replaceWithText(`(${refAccess}.value as HTMLElement)`);
+                    break;
+                default:
+                    //the accessing key is not data of component, could also be the argument of the function;
+                    par.replaceWithText(thisAccessKey);
+            }
+        }
     });
 }
 exports.processThisKeywordAccess = processThisKeywordAccess;
@@ -109,6 +157,7 @@ function constructMainOutputMapper(outputFile, oldMapper) {
     outputMapper.props = templateObject.getProperty("props").getInitializer();
     if (oldMapper) {
         outputMapper.newCompositionImports = oldMapper.newCompositionImports;
+        outputMapper.otherImports = oldMapper.otherImports;
         copyObjectValue(outputMapper, oldMapper);
     }
     return outputMapper;
@@ -121,7 +170,10 @@ function getBlockFunctionName(block) {
 }
 exports.getBlockFunctionName = getBlockFunctionName;
 function getParamsString(method) {
-    return method.getParameters().map(p => p.print()).join(', ');
+    return method.getParameters().map(p => {
+        const pType = p.getTypeNode();
+        return `${p.getName()}: ${pType ? pType.getText() : 'any'}`;
+    }).join(', ');
 }
 exports.getParamsString = getParamsString;
 //# sourceMappingURL=helpers.js.map

@@ -1,6 +1,7 @@
-import {ArrowFunction, FunctionDeclaration, FunctionExpression, GetAccessorDeclaration, MethodDeclaration, Node, ObjectLiteralExpression, PropertyAssignment, ReturnStatement, SourceFile, ts} from "ts-morph";
+import {ArrowFunction, CallExpression, FunctionDeclaration, FunctionExpression, GetAccessorDeclaration, MethodDeclaration, Node, ObjectLiteralExpression, PropertyAssignment, ReturnStatement, SourceFile, StringLiteral, ts, VariableDeclarationKind} from "ts-morph";
 import {isEmpty} from "lodash";
-import { OutputMapper } from "./models/mapperModel";
+import { InputMapper, OutputMapper } from "./models/mapperModel";
+import { ImportPayload } from "./models/payload";
 
 export function findScriptContent(vueComponentString) {
     const arr = vueComponentString.split("\n");
@@ -31,7 +32,7 @@ export function checkVarIsComponentData(varName: string, inputMapper: Record<str
     if (methodArguments?.includes(varName))
         return false;
     const isProp = inputMapper.propNames.includes(varName);
-    const isData = inputMapper.dataProps.find(data => data.name === varName);
+    const isData = inputMapper.dataProps.find((data: PropertyAssignment) => data.getName() === varName);
     const isComputed = inputMapper.computedNames.includes(varName);
     return isProp || isData || isComputed;
 }
@@ -42,16 +43,63 @@ export function findExportNode(sf) {
     return mainExport;
 }
 
-export function processThisKeywordAccess(method, inputMapper){
+export function addImportToMapper(outputMapper: OutputMapper, importFile: string, importedVar: ImportPayload){
+    if (!outputMapper.otherImports[importFile])
+        outputMapper.otherImports[importFile] = {}
+    if (importedVar.defaultImport)
+        outputMapper.otherImports[importFile].defaultImport = importedVar.defaultImport;
+    if (importedVar.namedImportsArray){
+        if (!outputMapper.otherImports[importFile].namedImports)
+            outputMapper.otherImports[importFile].namedImports = new Set<string>();
+        importedVar.namedImportsArray.forEach(imp => outputMapper.otherImports[importFile].namedImports.add(imp));
+    }
+}
+
+const declaredIdentifier: Record<string, boolean> = {};
+export function initDeclareInSetup(outputMapper: OutputMapper, declareName: string, initializer: string){
+    if (declaredIdentifier[declareName]) return;
+    declaredIdentifier[declareName] = true;
+    const oSetup = (outputMapper.setup as MethodDeclaration);
+    oSetup.addVariableStatement({
+        declarationKind: VariableDeclarationKind.Const,
+        declarations:[{name: declareName, initializer}]
+    }).setOrder(2);
+}
+
+export function processThisKeywordAccess(method, inputMapper: InputMapper, outputMapper?: OutputMapper){
     method.getDescendantsOfKind(ts.SyntaxKind.ThisKeyword).forEach((thisKeyword) => {
         const par = thisKeyword.getParent();
         const thisAccessKey = par.getChildAtIndex(2).print();
         //replace if the accessing key is a data of component
         if (checkVarIsComponentData(thisAccessKey, inputMapper))
             par.replaceWithText(`${thisAccessKey}.value`);
-        else
-            //the accessing key is not data of component, could also be the argument of the function;
-            par.replaceWithText(thisAccessKey);
+        else{
+            switch (thisAccessKey){
+                case '$lang':
+                    par.replaceWithText(`lang`);
+                    outputMapper && addImportToMapper(outputMapper, `@/lang/lang`, {defaultImport: `lang`})
+                    break;
+                case '$router':
+                    par.replaceWithText(`vRouter`);
+                    initDeclareInSetup(outputMapper, 'vRouter', 'useRouter()')
+                    outputMapper && addImportToMapper(outputMapper, `@/composables/root`, {namedImportsArray: [`useRouter`]})
+                    break;
+                case '$emit':
+                    const emitEvent = (par.getParent() as CallExpression).getArguments()[0] as StringLiteral;
+                    par.replaceWithText(`context.emit`);
+                    inputMapper.emitsNames.add(emitEvent.getLiteralText ? emitEvent.getLiteralText() : emitEvent.getText());
+                    break;
+                case '$refs':
+                    const refAccessNode = par.getParent().getChildAtIndex(2);
+                    const refAccess: string = refAccessNode.getLiteralText ? refAccessNode.getLiteralText() : refAccessNode.getText();
+                    inputMapper.refsNames.add(refAccess);
+                    par.getParent().replaceWithText(`(${refAccess}.value as HTMLElement)`)
+                    break;
+                default:
+                    //the accessing key is not data of component, could also be the argument of the function;
+                    par.replaceWithText(thisAccessKey);
+            }
+        }
     })
 }
 
@@ -71,8 +119,8 @@ export function getReturnedExpression(node) {
     return (returnStatement as ReturnStatement).getExpression();
 }
 
-export function copyObjectToProperyAssignment(source, target, targetKeyName: string): PropertyAssignment{
-    let prop = (target as ObjectLiteralExpression).addPropertyAssignment({
+export function copyObjectToProperyAssignment(source, target: ObjectLiteralExpression, targetKeyName: string): PropertyAssignment{
+    let prop = target.addPropertyAssignment({
         name: targetKeyName, 
         initializer: '{}'
     })
@@ -102,6 +150,7 @@ export function constructMainOutputMapper(outputFile: SourceFile, oldMapper?: Ou
     outputMapper.props = (templateObject.getProperty("props")as PropertyAssignment).getInitializer();
     if (oldMapper){
         outputMapper.newCompositionImports = oldMapper.newCompositionImports;
+        outputMapper.otherImports = oldMapper.otherImports;
         copyObjectValue(outputMapper, oldMapper);
     }
     return outputMapper;

@@ -2,7 +2,7 @@ import { ts, SourceFile, ObjectBindingPattern, ReturnStatement, VariableDeclarat
 import { MethodDeclaration, ExportAssignment, CallExpression, ArrowFunction,
         ObjectLiteralExpression, PropertyAssignment, VariableDeclarationKind} from "ts-morph";
 import {processThisKeywordAccess} from "../helpers";
-import { InputMapper } from "../models/mapperModel";
+import { InputMapper, OutputMapper } from "../models/mapperModel";
 
 export function computedAsCall(inputMapper: InputMapper): string[] {
     const iComputed = inputMapper.computed as CallExpression;
@@ -19,7 +19,7 @@ export function computedAsCall(inputMapper: InputMapper): string[] {
     return [];
 }
 
-export function computedAsObject(inputMapper: InputMapper) {
+export function computedAsObject(inputMapper: InputMapper, outputMapper: OutputMapper) {
     const iComputed = inputMapper.computed as ObjectLiteralExpression;
     const res = [];
     let body = {}, type = {};
@@ -29,14 +29,14 @@ export function computedAsObject(inputMapper: InputMapper) {
         switch (prop.getKind()){
             case ts.SyntaxKind.MethodDeclaration:
                 prop = prop as MethodDeclaration;
-                processThisKeywordAccess(prop, inputMapper);
+                processThisKeywordAccess(prop, inputMapper, outputMapper);
                 body = prop.getBody();
                 type = prop.getReturnTypeNode()?.getText();
                 break;
             case ts.SyntaxKind.PropertyAssignment:
                 //check if the property is arrow function or function expression
                 const propBody = (prop as PropertyAssignment).getInitializer() as Node;
-                processThisKeywordAccess(propBody, inputMapper);
+                processThisKeywordAccess(propBody, inputMapper, outputMapper);
                 if (propBody.isKind(ts.SyntaxKind.ArrowFunction) || propBody.isKind(ts.SyntaxKind.FunctionExpression)){
                     body = (propBody as FunctionExpression).getBody();
                     type = (propBody as FunctionExpression).getReturnTypeNode()?.getText();

@@ -25,7 +25,7 @@ function handleHooks(inputMapper, outputMapper) {
     const statements = oSetup.addStatements(hookStrings);
     //clean this keywords from statements
     statements.forEach((statement) => {
-        (0, helpers_1.processThisKeywordAccess)(statement, inputMapper);
+        (0, helpers_1.processThisKeywordAccess)(statement, inputMapper, outputMapper);
     });
 }
 exports.default = handleHooks;

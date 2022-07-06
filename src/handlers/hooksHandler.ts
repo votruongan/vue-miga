@@ -1,11 +1,7 @@
-import { ts, SourceFile, ObjectBindingPattern, ReturnStatement, VariableDeclarationStructure, ParameterDeclaration, Block } from "ts-morph";
-import { MethodDeclaration, ExportAssignment, CallExpression, FunctionDeclaration,
-        ObjectLiteralExpression, PropertyAssignment, VariableDeclarationKind} from "ts-morph";
+import { MethodDeclaration, Block } from "ts-morph";
 import { AVAILABLE_HOOKS } from "../consts";
-import {cloneObject, findExportNode, processThisKeywordAccess, isNodeEmpty} from "../helpers";
+import { processThisKeywordAccess, isNodeEmpty} from "../helpers";
 import { InputMapper, OutputMapper } from "../models/mapperModel";
-import {computedAsObject, computedAsCall} from "./computedHandlers"
-import {mixinsToComposables} from "./mixinsHandler"
 
 
 export default function handleHooks(inputMapper: InputMapper, outputMapper: OutputMapper){
@@ -32,6 +28,6 @@ export default function handleHooks(inputMapper: InputMapper, outputMapper: Outp
 
     //clean this keywords from statements
     statements.forEach((statement) => {
-        processThisKeywordAccess(statement, inputMapper);
+        processThisKeywordAccess(statement, inputMapper, outputMapper);
     })
 }
