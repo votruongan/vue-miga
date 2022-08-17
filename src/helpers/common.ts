@@ -1,9 +1,10 @@
 import {ArrowFunction, CallExpression, FunctionDeclaration, FunctionExpression, GetAccessorDeclaration, MethodDeclaration, Node, ObjectLiteralExpression, PropertyAssignment, ReturnStatement, SourceFile, StringLiteral, ts, VariableDeclarationKind} from "ts-morph";
 import {isEmpty} from "lodash";
-import { InputMapper, OutputMapper } from "./models/mapperModel";
-import { ImportPayload } from "./models/payload";
+import { InputMapper, OutputMapper } from "../models/mapperModel";
+import { ImportPayload } from "../models/payload";
+import { customizedThisKeywordAccessProccessor } from "../customizables";
 
-export function findScriptContent(vueComponentString) {
+export function findScriptContent(vueComponentString: string) {
     const arr = vueComponentString.split("\n");
     let begin = 0, end = 0;
     for (let i = 0; i < arr.length; i++) {
@@ -59,7 +60,7 @@ const declaredIdentifier: Record<string, boolean> = {};
 export function initDeclareInSetup(outputMapper: OutputMapper, declareName: string, initializer: string){
     if (declaredIdentifier[declareName]) return;
     declaredIdentifier[declareName] = true;
-    const oSetup = (outputMapper.setup as MethodDeclaration);
+    const oSetup = outputMapper.setup;
     oSetup.addVariableStatement({
         declarationKind: VariableDeclarationKind.Const,
         declarations:[{name: declareName, initializer}]
@@ -73,32 +74,8 @@ export function processThisKeywordAccess(method, inputMapper: InputMapper, outpu
         //replace if the accessing key is a data of component
         if (checkVarIsComponentData(thisAccessKey, inputMapper))
             par.replaceWithText(`${thisAccessKey}.value`);
-        else{
-            switch (thisAccessKey){
-                case '$lang':
-                    par.replaceWithText(`lang`);
-                    outputMapper && addImportToMapper(outputMapper, `@/lang/lang`, {defaultImport: `lang`})
-                    break;
-                case '$router':
-                    par.replaceWithText(`vRouter`);
-                    initDeclareInSetup(outputMapper, 'vRouter', 'useRouter()')
-                    outputMapper && addImportToMapper(outputMapper, `@/composables/root`, {namedImportsArray: [`useRouter`]})
-                    break;
-                case '$emit':
-                    const emitEvent = (par.getParent() as CallExpression).getArguments()[0] as StringLiteral;
-                    par.replaceWithText(`context.emit`);
-                    inputMapper.emitsNames.add(emitEvent.getLiteralText ? emitEvent.getLiteralText() : emitEvent.getText());
-                    break;
-                case '$refs':
-                    const refAccessNode = par.getParent().getChildAtIndex(2);
-                    const refAccess: string = refAccessNode.getLiteralText ? refAccessNode.getLiteralText() : refAccessNode.getText();
-                    inputMapper.refsNames.add(refAccess);
-                    par.getParent().replaceWithText(`(${refAccess}.value as HTMLElement)`)
-                    break;
-                default:
-                    //the accessing key is not data of component, could also be the argument of the function;
-                    par.replaceWithText(thisAccessKey);
-            }
+        else {
+            customizedThisKeywordAccessProccessor(thisAccessKey, par, inputMapper, outputMapper);
         }
     })
 }
@@ -163,5 +140,12 @@ export function getBlockFunctionName(block) {
 }
 
 export function getParamsString(method: MethodDeclaration | ArrowFunction | FunctionExpression | FunctionDeclaration | GetAccessorDeclaration): string {
+    if (!method?.getParameters)
+        return '';
     return method.getParameters().map(p => p.print()).join(', ');
+}
+
+export function getStringLiteralValue(input: StringLiteral | string): string {
+    let tmpString = (input as StringLiteral).print ? (input as StringLiteral).print() : input;
+    return (tmpString as string).replace(/\'/g, '');
 }

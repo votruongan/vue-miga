@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getParamsString = exports.getBlockFunctionName = exports.constructMainOutputMapper = exports.copyObjectValue = exports.addComment = exports.copyObjectToProperyAssignment = exports.getReturnedExpression = exports.isNodeEmpty = exports.processThisKeywordAccess = exports.initDeclareInSetup = exports.addImportToMapper = exports.findExportNode = exports.checkVarIsComponentData = exports.cloneObject = exports.findScriptContent = void 0;
+exports.getStringLiteralValue = exports.getParamsString = exports.getBlockFunctionName = exports.constructMainOutputMapper = exports.copyObjectValue = exports.addComment = exports.copyObjectToProperyAssignment = exports.getReturnedExpression = exports.isNodeEmpty = exports.processThisKeywordAccess = exports.initDeclareInSetup = exports.addImportToMapper = exports.findExportNode = exports.checkVarIsComponentData = exports.cloneObject = exports.findScriptContent = void 0;
 const ts_morph_1 = require("ts-morph");
 const lodash_1 = require("lodash");
 const mapperModel_1 = require("./models/mapperModel");
@@ -170,10 +170,12 @@ function getBlockFunctionName(block) {
 }
 exports.getBlockFunctionName = getBlockFunctionName;
 function getParamsString(method) {
-    return method.getParameters().map(p => {
-        const pType = p.getTypeNode();
-        return `${p.getName()}: ${pType ? pType.getText() : 'any'}`;
-    }).join(', ');
+    return method.getParameters().map(p => p.print()).join(', ');
 }
 exports.getParamsString = getParamsString;
+function getStringLiteralValue(input) {
+    let tmpString = input.print ? input.print() : input;
+    return tmpString.replace(/\'/g, '');
+}
+exports.getStringLiteralValue = getStringLiteralValue;
 //# sourceMappingURL=helpers.js.map

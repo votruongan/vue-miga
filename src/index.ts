@@ -1,6 +1,7 @@
 import { Project, ScriptTarget } from "ts-morph";
-import { findScriptContent } from "./helpers"
+import { findScriptContent } from "./helpers/common"
 import { readFileSync, writeFileSync } from "fs";
+import { isEmpty } from "lodash";
 import makeVue3CodeFromVue2Export from "./handlers/baseHandlers";
 import process from "process";
 import fs from "fs";
@@ -10,7 +11,7 @@ if (require.main === module) {
     try{  
         main();
     } catch (e) {
-        console.log(e);
+        console.log(`ERROR: ${e}`);
     }
 }
 
@@ -47,14 +48,15 @@ function main() {
 }
 
 function processCLIEnvironment(process: NodeJS.Process){
-    const projectPath = process.cwd(), input = process.argv[2];
-    if (!input || !input.length)
-        throw "ERROR: No input file provided."
+    const projectPath = process.cwd();
+    const [_, __, input] = process.argv;
+    if (isEmpty(input))
+        throw "No input file provided."
     const inputFilePath = path.isAbsolute(input)? input : path.resolve(input);
     if (!fs.existsSync(projectPath + "/tsconfig.json"))
         console.log(`/!\\ No tsconfig file found.`)
     if (!inputFilePath || !fs.existsSync(inputFilePath))
-        throw `ERROR: File '${inputFilePath}' is not existing`
+        throw `File '${inputFilePath}' is not existing`
     process.chdir(process.env.VUE_MIGA_HOME)
     return {  projectPath, inputFilePath, }
 }

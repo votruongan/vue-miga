@@ -1,4 +1,5 @@
 "use strict";
+// Convert the class api syntax to options syntax.
 Object.defineProperty(exports, "__esModule", { value: true });
 const ts_morph_1 = require("ts-morph");
 const consts_1 = require("../consts");
@@ -31,7 +32,10 @@ function mapData(decoratorObject, mainClass) {
     dataDeclares.forEach(p => {
         const name = p.getName();
         //this data is a property -> skip this
-        if (propsNames.includes(name))
+        if (propsNames === null || propsNames === void 0 ? void 0 : propsNames.includes(name))
+            return;
+        //this data is defined somewhere
+        if (p.getExclamationTokenNode())
             return;
         assigns.push({ name, initializer: p.getInitializer().print(), kind: 40, type: p.getChildAtIndex(2).getText() });
     });
@@ -45,9 +49,12 @@ function mapData(decoratorObject, mainClass) {
     dataObject.addPropertyAssignments(assigns);
 }
 function mapComputed(decoratorObject, mainClass) {
+    var _a;
     const getAccessors = mainClass.getGetAccessors();
     if (getAccessors.length == 0)
         return;
+    const existingComputedObject = (_a = decoratorObject.getProperty('computed')) === null || _a === void 0 ? void 0 : _a.getInitializer();
+    //get the body object of computed property. If no computed exist, create one.
     const computedObject = decoratorObject.addPropertyAssignment({
         name: 'computed', initializer: `{}`,
     }).getInitializer();
@@ -57,6 +64,59 @@ function mapComputed(decoratorObject, mainClass) {
         const type = (_a = computed.getReturnTypeNode()) === null || _a === void 0 ? void 0 : _a.getText();
         //add the computed to computedObject
         computedObject.addMethod({ name }).replaceWithText(`${name} (${(0, helpers_1.getParamsString)(computed)})${type ? `: ${type}` : ''} ${computed.getBody().print()}`);
+    });
+    if (existingComputedObject) {
+        mapComputedInDecorator(existingComputedObject, computedObject, mainClass);
+    }
+    console.log(computedObject.print());
+    throw `STOP`;
+}
+function mapComputedInDecorator(existingComputedObject, newComputedObject, mainClass) {
+    existingComputedObject.getProperties().forEach(p => {
+        switch (p.getKind()) {
+            // handle ... (spread assignment)
+            case ts_morph_1.ts.SyntaxKind.SpreadAssignment:
+                const call = p.getExpressionIfKind(ts_morph_1.ts.SyntaxKind.CallExpression);
+                const callName = call.getExpression().print();
+                const callArgs = call.getArguments();
+                const storeName = callArgs[0].getFullText();
+                const getNames = callArgs[1];
+                const dataToStoreValueMapper = {};
+                if (getNames.isKind(ts_morph_1.ts.SyntaxKind.ObjectLiteralExpression)) {
+                    getNames.getProperties().forEach((prop) => {
+                        dataToStoreValueMapper[prop.getName()] = (0, helpers_1.getStringLiteralValue)(prop.getInitializer());
+                    });
+                }
+                else {
+                    getNames.getElements().forEach(e => {
+                        dataToStoreValueMapper[e.print()] = (0, helpers_1.getStringLiteralValue)(e);
+                    });
+                }
+                const computedDataKeys = Object.keys(dataToStoreValueMapper);
+                if (!storeName)
+                    return;
+                //loop through the ... and create new computed
+                computedDataKeys.forEach(key => {
+                    const name = (0, helpers_1.getStringLiteralValue)(key);
+                    const storeInsideString = (0, helpers_1.getStringLiteralValue)(storeName);
+                    const type = mainClass.getProperty(name).getTypeNode().getText();
+                    const newMethod = newComputedObject.addMethod({ name });
+                    // begin of the function body. Eg: "foo (): BarType { "
+                    let methodBodyString = `${name} ()${type ? `: ${type}` : ''} {\n`;
+                    // handle for ...mapState case
+                    if (callName === 'mapState') {
+                        methodBodyString += `return this.store.state['${storeInsideString}']['${dataToStoreValueMapper[key]}'];`;
+                    }
+                    //TODO: handle for ...mapGetter case
+                    else if (callName === 'mapGetters') {
+                        methodBodyString += `return this.store.state['${storeInsideString}']['${dataToStoreValueMapper[key]}'];`;
+                    }
+                    newMethod.replaceWithText(methodBodyString + '\n}');
+                });
+                break;
+            // method and arrow function props
+            default:
+        }
     });
 }
 function mapWatch(decoratorObject, mainClass) {

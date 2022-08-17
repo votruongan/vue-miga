@@ -1,8 +1,13 @@
-import { ts, ObjectLiteralElementLike, ClassDeclaration, ArrayLiteralExpression } from "ts-morph";
+
+// Convert the class api syntax to options syntax.
+
+import { ts, ObjectLiteralElementLike, ClassDeclaration, ArrayLiteralExpression, SpreadAssignment, StringLiteral } from "ts-morph";
 import { MethodDeclaration, ExportAssignment, CallExpression, FunctionDeclaration,
         ObjectLiteralExpression, PropertyAssignment, VariableDeclarationKind } from "ts-morph";
-import { AVAILABLE_HOOKS } from "../consts";
-import {getParamsString, getReturnedExpression} from "../helpers";
+import { AVAILABLE_HOOKS } from "../../consts";
+import {getParamsString, getReturnedExpression, getStringLiteralValue} from "../../helpers/common";
+import mapComputedInDecorator from "./mapComputedInDecorator";
+import mapMethodInDecorator from "./mapMethodInDecorator";
 
 export default function convertClassToOptions(mainClass: ClassDeclaration): ObjectLiteralElementLike[]{
     const decoratorExpression = mainClass.getDecorator('Component').getCallExpression();
@@ -13,6 +18,7 @@ export default function convertClassToOptions(mainClass: ClassDeclaration): Obje
     }
     const decoratorObject = decoratorExpression.getArguments()[0] as ObjectLiteralExpression;
 
+    console.log(' - converting class to options')
     mapMixins(decoratorObject, mainClass);
     mapData(decoratorObject, mainClass);
     mapComputed(decoratorObject, mainClass);
@@ -34,8 +40,13 @@ function mapData(decoratorObject: ObjectLiteralExpression, mainClass: ClassDecla
     dataDeclares.forEach(p => {
         const name = p.getName();
         //this data is a property -> skip this
-        if (propsNames.includes(name))
+        if (propsNames?.includes(name))
             return;
+        
+        //this data is defined somewhere
+        if (p.getExclamationTokenNode())
+            return;
+
         assigns.push({ name, initializer: p.getInitializer().print(), kind: 40, type: p.getChildAtIndex(2).getText()})
     })
     const dataMethod = decoratorObject.addMethod({
@@ -50,17 +61,24 @@ function mapData(decoratorObject: ObjectLiteralExpression, mainClass: ClassDecla
 
 function mapComputed(decoratorObject: ObjectLiteralExpression, mainClass: ClassDeclaration) {
     const getAccessors = mainClass.getGetAccessors()
-    if (getAccessors.length == 0)
-        return;
+
+    const existingComputedObject = (decoratorObject.getProperty('computed') as PropertyAssignment)?.getInitializer() as ObjectLiteralExpression;
+
+    //get the body object of computed property. If no computed exist, create one.
     const computedObject = decoratorObject.addPropertyAssignment({
         name: 'computed', initializer: `{}`,
     }).getInitializer() as ObjectLiteralExpression;
+
     getAccessors.forEach(computed => {
         const name = computed.getName();
         const type = computed.getReturnTypeNode()?.getText();
         //add the computed to computedObject
         computedObject.addMethod({ name }).replaceWithText(`${name} (${getParamsString(computed)})${type ? `: ${type}` : ''} ${computed.getBody().print()}`)
     })
+
+    if (existingComputedObject) {
+        mapComputedInDecorator(existingComputedObject, computedObject, mainClass);
+    }
 }
 
 function mapWatch(decoratorObject: ObjectLiteralExpression, mainClass: ClassDeclaration){
@@ -75,7 +93,6 @@ function mapWatch(decoratorObject: ObjectLiteralExpression, mainClass: ClassDecl
         name: 'watch', initializer: `{}`,
     }).getInitializer() as ObjectLiteralExpression;
     const watchNames = []
-    let tmpWatch = []
     watchMethods.forEach(watch => {
         const allWatchVars = watch.getDecorators().filter(d => d.getCallExpression().getExpression().print() === 'Watch').map(d => d.getCallExpression().getArguments()[0].print());
         const name = allWatchVars.length > 1 ? `[${allWatchVars.join(', ')}]` : allWatchVars[0];
@@ -91,6 +108,8 @@ function mapMethod(decoratorObject: ObjectLiteralExpression, mainClass: ClassDec
     const methods = mainClass.getMethods().filter(m => !watchNames.includes(m.getName()));
     const realMethods: string[] = [];
     const methodNames: string[] = [];
+    const methodsObjectInDecorator = (decoratorObject.getProperty('methods') as PropertyAssignment)?.getInitializer() as ObjectLiteralExpression;
+
     methods.forEach((m) => {
         const name = m.getName();
         //hooks will have to be a new prop. Cannot declare in methods
@@ -101,14 +120,18 @@ function mapMethod(decoratorObject: ObjectLiteralExpression, mainClass: ClassDec
         realMethods.push(m.print());
         methodNames.push(name);
     });
-    if (realMethods.length == 0)
-        return
+
     const methodsObject = decoratorObject.addPropertyAssignment({
         name: 'methods', initializer: `{}`,
     }).getInitializer() as ObjectLiteralExpression;
+
     methodNames.forEach((name, index) => {
         methodsObject.addMethod({name}).replaceWithText(realMethods[index])
     })
+
+    if (methodsObjectInDecorator) {
+        mapMethodInDecorator(methodsObjectInDecorator, methodsObject, mainClass);
+    }
 }
 
 function mapMixins(decoratorObject: ObjectLiteralExpression, mainClass: ClassDeclaration){

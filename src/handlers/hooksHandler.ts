@@ -1,6 +1,6 @@
 import { MethodDeclaration, Block } from "ts-morph";
 import { AVAILABLE_HOOKS } from "../consts";
-import { processThisKeywordAccess, isNodeEmpty} from "../helpers";
+import { processThisKeywordAccess, isNodeEmpty} from "../helpers/common";
 import { InputMapper, OutputMapper } from "../models/mapperModel";
 
 

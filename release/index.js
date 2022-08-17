@@ -4,8 +4,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const ts_morph_1 = require("ts-morph");
-const helpers_1 = require("./helpers");
+const common_1 = require("./helpers/common");
 const fs_1 = require("fs");
+const lodash_1 = require("lodash");
 const baseHandlers_1 = __importDefault(require("./handlers/baseHandlers"));
 const process_1 = __importDefault(require("process"));
 const fs_2 = __importDefault(require("fs"));
@@ -15,7 +16,7 @@ if (require.main === module) {
         main();
     }
     catch (e) {
-        console.log(e);
+        console.log(`ERROR: ${e}`);
     }
 }
 function main() {
@@ -28,7 +29,7 @@ function main() {
     });
     project.addSourceFilesAtPaths("output_templates/*.template");
     let fileContent = (0, fs_1.readFileSync)(inputFilePath, { encoding: "utf-8" });
-    const { content, startLine, endLine } = (0, helpers_1.findScriptContent)(fileContent);
+    const { content, startLine, endLine } = (0, common_1.findScriptContent)(fileContent);
     project.createSourceFile("./tmp.tscontent", content);
     const appNode = project.getSourceFile("./tmp.tscontent");
     const template = project.getSourceFile("output_templates/output_vue2_composition.template");
@@ -43,14 +44,15 @@ function main() {
     // console.log(scriptContent);
 }
 function processCLIEnvironment(process) {
-    const projectPath = process.cwd(), input = process.argv[2];
-    if (!input || !input.length)
-        throw "ERROR: No input file provided.";
+    const projectPath = process.cwd();
+    const [_, __, input] = process.argv;
+    if ((0, lodash_1.isEmpty)(input))
+        throw "No input file provided.";
     const inputFilePath = path_1.default.isAbsolute(input) ? input : path_1.default.resolve(input);
     if (!fs_2.default.existsSync(projectPath + "/tsconfig.json"))
         console.log(`/!\\ No tsconfig file found.`);
     if (!inputFilePath || !fs_2.default.existsSync(inputFilePath))
-        throw `ERROR: File '${inputFilePath}' is not existing`;
+        throw `File '${inputFilePath}' is not existing`;
     process.chdir(process.env.VUE_MIGA_HOME);
     return { projectPath, inputFilePath, };
 }

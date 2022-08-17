@@ -1,7 +1,7 @@
 import { ts, SourceFile, ObjectBindingPattern, ReturnStatement, VariableDeclarationStructure, Node, FunctionExpression } from "ts-morph";
 import { MethodDeclaration, ExportAssignment, CallExpression, ArrowFunction,
         ObjectLiteralExpression, PropertyAssignment, VariableDeclarationKind} from "ts-morph";
-import {processThisKeywordAccess} from "../helpers";
+import {processThisKeywordAccess} from "../helpers/common";
 import { InputMapper, OutputMapper } from "../models/mapperModel";
 
 export function computedAsCall(inputMapper: InputMapper): string[] {

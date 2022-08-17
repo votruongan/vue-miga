@@ -5,7 +5,6 @@ class Mapper {
     constructor() {
         this.components = {};
         this.props = {};
-        this.setup = {};
     }
 }
 class InputMapper extends Mapper {
@@ -40,6 +39,7 @@ class OutputMapper extends Mapper {
         super(...arguments);
         this.newCompositionImports = ['defineComponent'];
         this.otherImports = {};
+        this.unsureExpression = [];
     }
 }
 exports.OutputMapper = OutputMapper;
